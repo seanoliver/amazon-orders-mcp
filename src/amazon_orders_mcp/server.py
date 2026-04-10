@@ -18,6 +18,8 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
+from amazonorders.exception import AmazonOrdersAuthError
+
 from amazon_orders_mcp.client import (
     NonInteractiveAuthRequired,
     build_session,
@@ -88,6 +90,19 @@ async def _run_blocking(
         )
     except NonInteractiveAuthRequired as e:
         return _error(str(e), action_required="run_cookie_capture")
+    except AmazonOrdersAuthError as e:
+        # This covers both AmazonOrdersAuthError (WAF challenge / bad session)
+        # and its subclass AmazonOrdersAuthRedirectError (Amazon redirected
+        # us to the sign-in page). In either case, the cookies are stale.
+        logger.warning(f"{tool_name} hit auth error: {e}")
+        return _error(
+            "Amazon session has expired. Re-run `uv run python cookie_capture.py` "
+            "in the amazon-orders-mcp repo to capture fresh cookies, then retry.",
+            action_required="run_cookie_capture",
+            underlying_error=str(e),
+            exception_type=type(e).__name__,
+            tool=tool_name,
+        )
     except Exception as e:
         logger.exception(f"{tool_name} failed")
         return _error(
