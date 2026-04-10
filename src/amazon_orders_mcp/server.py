@@ -18,6 +18,7 @@ from typing import Any, Callable, Dict, List, Optional, cast
 from amazonorders.exception import AmazonOrdersAuthError
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from amazon_orders_mcp.client import (
     NonInteractiveAuthRequired,
@@ -31,6 +32,22 @@ from amazon_orders_mcp.serialize import (
     serialize_transaction,
     serialize_transactions,
 )
+
+
+class TransactionQuery(BaseModel):
+    """A single external-transaction lookup request for `match_transactions_by_amount`.
+
+    Extra fields on the input dict are preserved and echoed back in the response,
+    so callers can round-trip their own metadata (e.g. account name, memo).
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    date: date
+    amount: float
+    window_days: int = Field(default=3, ge=0, le=30)
+    id: Optional[str] = None
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -329,30 +346,14 @@ async def get_transactions(
 
 
 def _blocking_match_transactions_by_amount(
-    queries: List[Dict[str, Any]],
+    parsed_queries: List[TransactionQuery],
     tolerance: float,
 ) -> str:
-    if not queries:
+    if not parsed_queries:
         return _json([])
 
-    parsed_queries = []
-    earliest = date.today()
-    latest = date.today()
-    for q in queries:
-        q_date = date.fromisoformat(q["date"])
-        window = int(q.get("window_days", 3))
-        amount = float(q["amount"])
-        parsed_queries.append(
-            {
-                "id": q.get("id"),
-                "date": q_date,
-                "amount": amount,
-                "window_days": window,
-                "raw": q,
-            }
-        )
-        earliest = min(earliest, q_date - timedelta(days=window))
-        latest = max(latest, q_date + timedelta(days=window))
+    earliest = min(q.date - timedelta(days=q.window_days) for q in parsed_queries)
+    latest = max(q.date + timedelta(days=q.window_days) for q in parsed_queries)
 
     txns = _fetch_transactions_for_range(
         start_date=earliest.isoformat(),
@@ -368,13 +369,12 @@ def _blocking_match_transactions_by_amount(
     results = []
     for q in parsed_queries:
         matches = []
-        target_amount = q["amount"]
-        for offset in range(-q["window_days"], q["window_days"] + 1):
-            check_date = q["date"] + timedelta(days=offset)
+        for offset in range(-q.window_days, q.window_days + 1):
+            check_date = q.date + timedelta(days=offset)
             for t in by_date.get(check_date, []):
                 if t.grand_total is None:
                     continue
-                if abs(t.grand_total - target_amount) <= tolerance:
+                if abs(t.grand_total - q.amount) <= tolerance:
                     matches.append(
                         {
                             "date_offset_days": offset,
@@ -384,7 +384,7 @@ def _blocking_match_transactions_by_amount(
 
         results.append(
             {
-                "query": q["raw"],
+                "query": q.model_dump(mode="json"),
                 "match_count": len(matches),
                 "matches": matches,
             }
@@ -409,16 +409,27 @@ async def match_transactions_by_amount(
             - `amount` (float): external amount as it appears on the bank
               statement — negative for purchases, positive for refunds
             - `id` (str, optional): your own identifier to round-trip
-            - `window_days` (int, optional, default 3): how many days of
-              slop to allow around the date when matching
+            - `window_days` (int, optional, default 3, max 30): how many
+              days of slop to allow around the date when matching
+            - Any additional fields are preserved and echoed back in the
+              response for round-tripping caller metadata.
         tolerance: Dollar tolerance for amount matches. Default $0.01.
 
     Returns:
         JSON array of {query, match_count, matches} objects.
     """
+    try:
+        parsed_queries = [TransactionQuery.model_validate(q) for q in queries]
+    except ValidationError as e:
+        return _error(
+            "Invalid queries payload — each entry needs `date` (YYYY-MM-DD) "
+            "and `amount` (number).",
+            validation_errors=e.errors(include_url=False),
+        )
+
     return await _run_blocking(
         _blocking_match_transactions_by_amount,
-        queries,
+        parsed_queries,
         tolerance,
         timeout=TIMEOUT_PAGED_CALL,
         tool_name="match_transactions_by_amount",

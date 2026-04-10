@@ -16,7 +16,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` won't fix 
   - `NonInteractiveIO.prompt` — verify it raises `NonInteractiveAuthRequired`.
   - None of these require a real Amazon account.
 
-- [ ] **2. Validate input in `match_transactions_by_amount`.** `server.py:337-399` reads `q["date"]`, `q["amount"]`, `q.get("window_days", 3)` directly. A missing key raises `KeyError`, bad date raises `ValueError`, bad amount raises `ValueError` — all surface as a generic `"match_transactions_by_amount failed: 'date'"`. Define a `TransactionQuery` pydantic `BaseModel` (pydantic is already in deps but unused) and `model_validate(q)` per element. Bonus: gives the MCP tool a proper JSON schema.
+- [x] **2. Validate input in `match_transactions_by_amount`.** Added `TransactionQuery` pydantic `BaseModel` with `extra="allow"` (so caller metadata round-trips). Validation happens synchronously in the async wrapper before dispatching to the thread, so `ValidationError` produces a clean `{error, validation_errors}` payload instead of being mangled by `_run_blocking`'s generic handler. Added `window_days` bounds (`0 ≤ n ≤ 30`). Smoke-tested against: good input, extra fields, missing `amount`, bad date string, out-of-range window.
 
 - [ ] **3. Guard `_fetch_transactions_for_range` against future `start_date`.** `server.py:290` — if `start_date` is in the future, `days_back = (today - start).days + 1` becomes negative and the upstream library call will error or misbehave. Add `if start > date.today(): return []` (or raise a clear error).
 
@@ -26,10 +26,10 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` won't fix 
 
 - [x] **6. Fix mypy errors.** Added `[[tool.mypy.overrides]] module = "amazonorders.*"` block to `pyproject.toml` (clears 5 `import-untyped`). Wrapped the two `amazon_transactions.get_transactions(...)` returns in `_fetch_transactions_for_range` with `cast(List[Any], ...)`. `mypy src` reports zero errors.
 
-- [~] **7. Remove or use unused dependencies/imports.**
+- [x] **7. Remove or use unused dependencies/imports.**
   - [x] `server.py:16` — dropped unused `Awaitable` from typing import.
   - [x] `server.py:47` — deleted unused `TIMEOUT_CHEAP` constant.
-  - [ ] `pyproject.toml:27` — `pydantic>=2.0.0` kept; will be wired up in item 2 for `TransactionQuery` validation.
+  - [x] `pyproject.toml:27` — `pydantic>=2.0.0` now imported and used by `TransactionQuery` (item 2).
 
 ---
 
