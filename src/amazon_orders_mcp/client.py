@@ -9,6 +9,7 @@ blocked by Amazon's JavaScript WAF challenges for requests-based sessions.
 The cookie-only path is the supported happy path.
 """
 
+import functools
 import logging
 from typing import Any, Optional
 
@@ -31,6 +32,35 @@ logger = logging.getLogger(__name__)
 # they're never actually used (because the cookie jar short-circuits login).
 _PLACEHOLDER_EMAIL = "[email protected]"
 _PLACEHOLDER_PASSWORD = "unused-cookie-auth"
+
+# Default timeout (seconds) for each HTTP request to Amazon.
+# amazon-orders / requests has no default timeout — a stuck connection will
+# hang forever without this. 30s is generous for any normal Amazon page load.
+DEFAULT_HTTP_TIMEOUT = 30.0
+
+
+def _install_request_timeout(
+    amazon_session: AmazonSession, timeout: float = DEFAULT_HTTP_TIMEOUT
+) -> None:
+    """
+    Monkey-patch the underlying `requests.Session.request` method to inject
+    a default `timeout=` when the caller doesn't provide one.
+
+    The `amazon-orders` library's `AmazonSession.request` forwards `**kwargs`
+    to `self.session.request(method, url, **kwargs)` without adding a
+    timeout. If the caller doesn't pass one (and the library never does),
+    requests will block forever on a slow/hung server. This wrapper ensures
+    every request has a bounded wait.
+    """
+    inner_session = amazon_session.session
+    original_request = inner_session.request
+
+    @functools.wraps(original_request)
+    def request_with_timeout(method: str, url: str, **kwargs: Any) -> Any:
+        kwargs.setdefault("timeout", timeout)
+        return original_request(method, url, **kwargs)
+
+    inner_session.request = request_with_timeout  # type: ignore[method-assign]
 
 
 class NonInteractiveAuthRequired(RuntimeError):
@@ -101,13 +131,19 @@ def build_session(
 
     io: IODefault = IODefault() if interactive else NonInteractiveIO()
 
-    return AmazonSession(
+    session = AmazonSession(
         username=creds.email,
         password=creds.password,
         otp_secret_key=creds.otp_secret_key,
         config=build_config(),
         io=io,
     )
+
+    # CRITICAL: install a default HTTP timeout so stuck Amazon connections
+    # can't wedge the MCP server forever. See DEFAULT_HTTP_TIMEOUT above.
+    _install_request_timeout(session)
+
+    return session
 
 
 def ensure_authenticated(session: AmazonSession) -> None:
