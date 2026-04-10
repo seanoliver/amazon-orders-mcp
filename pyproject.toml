@@ -59,3 +59,7 @@ line_length = 88
 python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = "amazonorders.*"
+ignore_missing_imports = true

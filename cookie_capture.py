@@ -54,7 +54,9 @@ def main() -> None:
         page = context.new_page()
 
         print("🌐 Opening Amazon sign-in page...")
-        page.goto("https://www.amazon.com/ap/signin?openid.pape.max_auth_age=900&openid.return_to=https%3A%2F%2Fwww.amazon.com%2Fgp%2Fyour-account%2Forder-history&openid.assoc_handle=usflex&openid.mode=checkid_setup&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0")
+        page.goto(
+            "https://www.amazon.com/ap/signin?openid.pape.max_auth_age=900&openid.return_to=https%3A%2F%2Fwww.amazon.com%2Fgp%2Fyour-account%2Forder-history&openid.assoc_handle=usflex&openid.mode=checkid_setup&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0"
+        )
 
         print("\n👉 Please sign in to Amazon in the browser window.")
         print("   (Enter your email, password, and any 2FA code.)")
@@ -125,8 +127,9 @@ def main() -> None:
     # Verify by doing a quick API call
     print("\n🧪 Testing cookies by fetching last 30 days of transactions...")
     try:
-        from amazon_orders_mcp.client import build_session, ensure_authenticated
         from amazonorders.transactions import AmazonTransactions
+
+        from amazon_orders_mcp.client import build_session, ensure_authenticated
 
         session = build_session()
         ensure_authenticated(session)

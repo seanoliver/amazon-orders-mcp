@@ -13,12 +13,11 @@ import asyncio
 import json
 import logging
 from datetime import date, timedelta
-from typing import Any, Awaitable, Callable, Dict, List, Optional
-
-from dotenv import load_dotenv
-from mcp.server.fastmcp import FastMCP
+from typing import Any, Callable, Dict, List, Optional, cast
 
 from amazonorders.exception import AmazonOrdersAuthError
+from dotenv import load_dotenv
+from mcp.server.fastmcp import FastMCP
 
 from amazon_orders_mcp.client import (
     NonInteractiveAuthRequired,
@@ -44,7 +43,6 @@ mcp = FastMCP("Amazon Orders MCP Server")
 # requests are also capped at DEFAULT_HTTP_TIMEOUT (see client.py). These
 # hard timeouts ensure the MCP event loop stays responsive even if something
 # goes wrong at a lower layer.
-TIMEOUT_CHEAP = 10.0       # non-network or trivial I/O
 TIMEOUT_SINGLE_CALL = 60.0  # one Amazon page load
 TIMEOUT_PAGED_CALL = 300.0  # multi-page fetches (order history, transactions)
 
@@ -105,9 +103,7 @@ async def _run_blocking(
         )
     except Exception as e:
         logger.exception(f"{tool_name} failed")
-        return _error(
-            f"{tool_name} failed: {e}", exception_type=type(e).__name__
-        )
+        return _error(f"{tool_name} failed: {e}", exception_type=type(e).__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -282,7 +278,7 @@ def _fetch_transactions_for_range(
     amazon_transactions = AmazonTransactions(session)
 
     if days is not None:
-        return amazon_transactions.get_transactions(days=days)
+        return cast(List[Any], amazon_transactions.get_transactions(days=days))
 
     if start_date:
         start = date.fromisoformat(start_date)
@@ -290,13 +286,11 @@ def _fetch_transactions_for_range(
         days_back = (date.today() - start).days + 1
         all_txns = amazon_transactions.get_transactions(days=days_back)
         filtered = [
-            t
-            for t in all_txns
-            if t.completed_date and start <= t.completed_date <= end
+            t for t in all_txns if t.completed_date and start <= t.completed_date <= end
         ]
         return filtered
 
-    return amazon_transactions.get_transactions(days=365)
+    return cast(List[Any], amazon_transactions.get_transactions(days=365))
 
 
 def _blocking_get_transactions(
