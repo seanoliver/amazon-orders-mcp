@@ -21,12 +21,14 @@ Run from the repo root:
 
 import json
 import sys
+import time
 from pathlib import Path
 
 # Make the package importable when running as a script
 src_path = Path(__file__).parent / "src"
 sys.path.insert(0, str(src_path))
 
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import sync_playwright
 
 from amazon_orders_mcp.secure_session import COOKIE_JAR_PATH, ensure_data_dir
@@ -64,15 +66,18 @@ def main() -> None:
 
         # Wait for the x-main cookie to appear — that's the signal we're authenticated.
         # Poll every 2 seconds for up to 5 minutes.
-        import time
-
         timeout_seconds = 300
         poll_interval = 2
         elapsed = 0
         captured = False
 
         while elapsed < timeout_seconds:
-            cookies = context.cookies()
+            try:
+                cookies = context.cookies()
+            except PlaywrightError:
+                print("\n❌ Browser window was closed before sign-in completed.")
+                print("   No cookies captured. Re-run the script to try again.")
+                return
             has_auth = any(
                 c["name"] == REQUIRED_COOKIE
                 and c["domain"]

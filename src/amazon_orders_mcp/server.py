@@ -298,9 +298,16 @@ def _fetch_transactions_for_range(
         return cast(List[Any], amazon_transactions.get_transactions(days=days))
 
     if start_date:
+        today = date.today()
         start = date.fromisoformat(start_date)
-        end = date.fromisoformat(end_date) if end_date else date.today()
-        days_back = (date.today() - start).days + 1
+        end = date.fromisoformat(end_date) if end_date else today
+
+        # Amazon has no future transactions, and the library can only fetch
+        # backward from today. Bail out on ranges we can't resolve.
+        if start > today or end < start:
+            return []
+
+        days_back = (today - start).days + 1
         all_txns = amazon_transactions.get_transactions(days=days_back)
         filtered = [
             t for t in all_txns if t.completed_date and start <= t.completed_date <= end

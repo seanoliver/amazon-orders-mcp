@@ -18,9 +18,9 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` won't fix 
 
 - [x] **2. Validate input in `match_transactions_by_amount`.** Added `TransactionQuery` pydantic `BaseModel` with `extra="allow"` (so caller metadata round-trips). Validation happens synchronously in the async wrapper before dispatching to the thread, so `ValidationError` produces a clean `{error, validation_errors}` payload instead of being mangled by `_run_blocking`'s generic handler. Added `window_days` bounds (`0 ≤ n ≤ 30`). Smoke-tested against: good input, extra fields, missing `amount`, bad date string, out-of-range window.
 
-- [ ] **3. Guard `_fetch_transactions_for_range` against future `start_date`.** `server.py:290` — if `start_date` is in the future, `days_back = (today - start).days + 1` becomes negative and the upstream library call will error or misbehave. Add `if start > date.today(): return []` (or raise a clear error).
+- [x] **3. Guard `_fetch_transactions_for_range` against future `start_date`.** Added `if start > today or end < start: return []` short-circuit. Smoke-tested: future start, reversed range, and normal past range all behave correctly (future/reversed skip the library call entirely; past range still hits it).
 
-- [ ] **4. Handle the user closing the browser in `cookie_capture.py`.** `cookie_capture.py:72-84` polls `context.cookies()` in a while loop. Closing Chromium mid-flow raises a Playwright error and crashes with an ugly stack trace. Wrap the poll in `try/except` for `PlaywrightError` and print a clean "browser closed — cancelled" message.
+- [x] **4. Handle the user closing the browser in `cookie_capture.py`.** Wrapped the `context.cookies()` poll in `try/except PlaywrightError` with a clean "Browser window was closed before sign-in completed" message and early return. Also hoisted `import time` to the module-level imports while I was in there.
 
 - [x] **5. Fix lint/format failures (would fail CI).** Ran `black` + `isort`; `cookie_capture.py` and `server.py` reformatted. All 7 files pass `--check`.
 
