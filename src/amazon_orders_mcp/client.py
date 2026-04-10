@@ -15,7 +15,7 @@ from typing import Any, Optional
 from amazonorders.conf import AmazonOrdersConfig
 from amazonorders.session import AmazonSession, IODefault
 
-from .secure_session import (
+from amazon_orders_mcp.secure_session import (
     COOKIE_JAR_PATH,
     OUTPUT_DIR,
     AmazonCredentials,

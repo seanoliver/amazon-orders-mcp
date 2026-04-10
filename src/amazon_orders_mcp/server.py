@@ -12,9 +12,13 @@ from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
-from .client import NonInteractiveAuthRequired, build_session, ensure_authenticated
-from .secure_session import cookie_jar_exists, load_credentials
-from .serialize import (
+from amazon_orders_mcp.client import (
+    NonInteractiveAuthRequired,
+    build_session,
+    ensure_authenticated,
+)
+from amazon_orders_mcp.secure_session import cookie_jar_exists, load_credentials
+from amazon_orders_mcp.serialize import (
     serialize_order,
     serialize_orders,
     serialize_transaction,
