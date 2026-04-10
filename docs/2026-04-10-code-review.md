@@ -8,13 +8,12 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` won't fix 
 
 ## Critical
 
-- [ ] **1. Add a real test suite.** `tests/` is empty and not tracked, but `pyproject.toml` declares `pytest` and `README.md` tells users to run it. Minimum viable coverage:
-  - `serialize.py` — all six functions against `SimpleNamespace` stubs.
-  - `_fetch_transactions_for_range` — monkeypatch `AmazonTransactions`, verify date-range filter math.
-  - `_blocking_match_transactions_by_amount` — verify window + tolerance matching.
-  - `_run_blocking` — verify all four exception branches produce the expected JSON shape.
-  - `NonInteractiveIO.prompt` — verify it raises `NonInteractiveAuthRequired`.
-  - None of these require a real Amazon account.
+- [x] **1. Add a real test suite.** 39 tests across 3 files, none requiring a real Amazon account. `uv run pytest -q` is clean.
+  - [x] `tests/test_serialize.py` — 20 tests, all six serializer functions + `_d` helper against `SimpleNamespace` stubs.
+  - [x] `tests/test_server.py::TestFetchTransactionsForRange` — 5 tests: days mode, future start, reversed range, past-range filter, 365-day default.
+  - [x] `tests/test_server.py::TestMatchTransactionsByAmount` — 7 tests: empty queries, exact match, window slop, out-of-window, tolerance, extras round-trip, `grand_total=None` skipped.
+  - [x] `tests/test_server.py::TestRunBlocking` — 5 tests: success, `TimeoutError`, `NonInteractiveAuthRequired`, `AmazonOrdersAuthError`, generic `Exception`.
+  - [x] `tests/test_client.py::TestNonInteractiveIO` — 2 tests: `prompt` raises `NonInteractiveAuthRequired`, `echo` doesn't raise.
 
 - [x] **2. Validate input in `match_transactions_by_amount`.** Added `TransactionQuery` pydantic `BaseModel` with `extra="allow"` (so caller metadata round-trips). Validation happens synchronously in the async wrapper before dispatching to the thread, so `ValidationError` produces a clean `{error, validation_errors}` payload instead of being mangled by `_run_blocking`'s generic handler. Added `window_days` bounds (`0 ≤ n ≤ 30`). Smoke-tested against: good input, extra fields, missing `amount`, bad date string, out-of-range window.
 
