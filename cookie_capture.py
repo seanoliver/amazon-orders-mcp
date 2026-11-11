@@ -74,17 +74,25 @@ def main() -> None:
         while elapsed < timeout_seconds:
             try:
                 cookies = context.cookies()
+                current_url = page.url.lower()
             except PlaywrightError:
                 print("\n❌ Browser window was closed before sign-in completed.")
                 print("   No cookies captured. Re-run the script to try again.")
                 return
+
             has_auth = any(
                 c["name"] == REQUIRED_COOKIE
                 and c["domain"]
                 and "amazon.com" in c["domain"]
                 for c in cookies
             )
-            if has_auth:
+            # Ensure the user has completed all 2FA / OTP / approval steps
+            # and is no longer on a sign-in or challenge URL
+            is_challenge_page = any(
+                k in current_url
+                for k in ("ap/signin", "openid", "mfa", "cvf", "approval", "verify")
+            )
+            if has_auth and not is_challenge_page:
                 captured = True
                 break
             time.sleep(poll_interval)
@@ -105,7 +113,7 @@ def main() -> None:
         # and pick up any additional cookies set by that page.
         try:
             page.goto(SIGNED_IN_LANDING_URL, timeout=15000)
-            page.wait_for_load_state("networkidle", timeout=10000)
+            page.wait_for_load_state("domcontentloaded", timeout=10000)
         except Exception as e:
             print(f"⚠️  Could not load order history page: {e}")
             print("   Proceeding with cookies captured so far.")
@@ -119,10 +127,13 @@ def main() -> None:
         # Convert to the flat {name: value} dict format amazon-orders expects
         flat_dict = {c["name"]: c["value"] for c in amazon_cookies}
 
-        # Write to the cookie jar
+        # Write to the cookie jar and persistent backup
         COOKIE_JAR_PATH.parent.mkdir(parents=True, exist_ok=True)
         COOKIE_JAR_PATH.write_text(json.dumps(flat_dict))
         COOKIE_JAR_PATH.chmod(0o600)
+        backup_path = COOKIE_JAR_PATH.parent / "cookies.backup.json"
+        backup_path.write_text(json.dumps(flat_dict))
+        backup_path.chmod(0o600)
 
         print(f"✅ Wrote {len(flat_dict)} cookies to {COOKIE_JAR_PATH}")
         print(f"   Cookie names: {', '.join(sorted(flat_dict.keys()))}")
@@ -130,16 +141,18 @@ def main() -> None:
         browser.close()
 
     # Verify by doing a quick API call
-    print("\n🧪 Testing cookies by fetching last 30 days of transactions...")
+    print("\n🧪 Testing cookies by fetching recent orders...")
     try:
-        from amazonorders.transactions import AmazonTransactions
+        from amazonorders.orders import AmazonOrders
 
         from amazon_orders_mcp.client import build_session, ensure_authenticated
 
         session = build_session()
         ensure_authenticated(session)
-        txns = AmazonTransactions(session).get_transactions(days=30)
-        print(f"✅ Retrieved {len(txns)} transactions from the last 30 days")
+        orders = AmazonOrders(session).get_order_history(
+            time_filter="last30", keep_paging=False
+        )
+        print(f"✅ Successfully retrieved {len(orders)} recent order(s)")
     except Exception as e:
         print(f"⚠️  Test fetch failed: {type(e).__name__}: {e}")
         print("   Cookies were saved but may not be valid.")

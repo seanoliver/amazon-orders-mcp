@@ -27,6 +27,7 @@ KEY_OTP_SECRET = "amazon-otp-secret"
 # Data directory for cookies + library state
 DATA_DIR = Path.home() / ".amazon-orders-mcp"
 COOKIE_JAR_PATH = DATA_DIR / "cookies.json"
+BACKUP_COOKIE_JAR_PATH = DATA_DIR / "cookies.backup.json"
 OUTPUT_DIR = DATA_DIR / "output"
 
 
@@ -104,5 +105,18 @@ def delete_credentials() -> None:
 
 
 def cookie_jar_exists() -> bool:
-    """Return True if a cookie jar file already exists from a prior login."""
-    return COOKIE_JAR_PATH.is_file() and COOKIE_JAR_PATH.stat().st_size > 0
+    """Return True if a valid cookie jar file containing auth cookies exists."""
+    import json
+
+    for path in (COOKIE_JAR_PATH, BACKUP_COOKIE_JAR_PATH):
+        if path.is_file() and path.stat().st_size > 10:
+            try:
+                data = json.loads(path.read_text())
+                if "x-main" in data:
+                    if path != COOKIE_JAR_PATH:
+                        COOKIE_JAR_PATH.write_text(path.read_text())
+                        COOKIE_JAR_PATH.chmod(0o600)
+                    return True
+            except Exception:
+                pass
+    return False

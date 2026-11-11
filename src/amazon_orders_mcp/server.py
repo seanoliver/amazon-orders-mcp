@@ -286,7 +286,9 @@ def _fetch_transactions_for_range(
     """Helper: fetch transactions for a date range by computing days-back.
 
     The amazon-orders library only accepts `days` back from today. We compute
-    the right `days` value and filter the results client-side.
+    the right `days` value and filter the results client-side. If the
+    Amazon payments feed fails (e.g. Amazon HTML changes on cpe/yourpayments),
+    it falls back to fetching orders from AmazonOrders and converting them.
     """
     from amazonorders.transactions import AmazonTransactions
 
@@ -294,27 +296,82 @@ def _fetch_transactions_for_range(
     ensure_authenticated(session)
     amazon_transactions = AmazonTransactions(session)
 
-    if days is not None:
-        return cast(List[Any], amazon_transactions.get_transactions(days=days))
-
+    today = date.today()
     if start_date:
-        today = date.today()
         start = date.fromisoformat(start_date)
         end = date.fromisoformat(end_date) if end_date else today
-
-        # Amazon has no future transactions, and the library can only fetch
-        # backward from today. Bail out on ranges we can't resolve.
         if start > today or end < start:
             return []
+    elif days is not None:
+        start = today - timedelta(days=days)
+        end = today
+    else:
+        start = today - timedelta(days=365)
+        end = today
 
-        days_back = (today - start).days + 1
-        all_txns = amazon_transactions.get_transactions(days=days_back)
-        filtered = [
-            t for t in all_txns if t.completed_date and start <= t.completed_date <= end
-        ]
-        return filtered
+    try:
+        if days is not None:
+            return cast(List[Any], amazon_transactions.get_transactions(days=days))
 
-    return cast(List[Any], amazon_transactions.get_transactions(days=365))
+        if start_date:
+            days_back = (today - start).days + 1
+            all_txns = amazon_transactions.get_transactions(days=days_back)
+            filtered = [
+                t
+                for t in all_txns
+                if t.completed_date and start <= t.completed_date <= end
+            ]
+            return filtered
+
+        return cast(List[Any], amazon_transactions.get_transactions(days=365))
+    except Exception as e:
+        logger.warning(
+            f"AmazonTransactions feed failed ({e}); falling back to AmazonOrders history."
+        )
+
+    # Fallback to AmazonOrders
+    from types import SimpleNamespace
+
+    from amazonorders.orders import AmazonOrders
+
+    amazon_orders = AmazonOrders(session)
+    orders = []
+
+    days_back = (today - start).days
+    if days_back <= 30:
+        orders = amazon_orders.get_order_history(time_filter="last30", keep_paging=True)
+    elif days_back <= 90:
+        orders = amazon_orders.get_order_history(
+            time_filter="months-3", keep_paging=True
+        )
+    else:
+        for y in range(start.year, end.year + 1):
+            orders.extend(amazon_orders.get_order_history(year=y, keep_paging=True))
+
+    txns: List[Any] = []
+    for o in orders:
+        if o.grand_total is not None and o.order_placed_date is not None:
+            if start <= o.order_placed_date <= end:
+                charge_amount = -abs(float(o.grand_total))
+                seller_name = None
+                if (
+                    getattr(o, "items", None)
+                    and o.items
+                    and getattr(o.items[0], "seller", None)
+                ):
+                    seller_name = getattr(o.items[0].seller, "name", None)
+                txns.append(
+                    SimpleNamespace(
+                        completed_date=o.order_placed_date,
+                        grand_total=charge_amount,
+                        payment_method=getattr(o, "payment_method", None),
+                        is_refund=False,
+                        order_number=o.order_number,
+                        order_details_link=o.order_details_link,
+                        seller=seller_name,
+                    )
+                )
+    return txns
 
 
 def _blocking_get_transactions(

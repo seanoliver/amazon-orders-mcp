@@ -98,6 +98,34 @@ class TestFetchTransactionsForRange:
         _fetch_transactions_for_range(start_date=None, end_date=None, days=None)
         mock_amazon_transactions.get_transactions.assert_called_once_with(days=365)
 
+    def test_transactions_error_falls_back_to_orders(self, mock_amazon_transactions):
+        import amazonorders.orders as ao_mod
+        from amazonorders.exception import AmazonOrdersError
+
+        mock_amazon_transactions.get_transactions.side_effect = AmazonOrdersError(
+            "Could not parse Transaction history."
+        )
+        fake_order = SimpleNamespace(
+            order_placed_date=date(2026, 1, 15),
+            grand_total=42.50,
+            payment_method="Visa",
+            order_number="111-222-333",
+            order_details_link="https://amazon.com/orders/111",
+            items=[],
+        )
+        mock_orders_cls = MagicMock()
+        mock_orders_inst = mock_orders_cls.return_value
+        mock_orders_inst.get_order_history.return_value = [fake_order]
+
+        with patch.object(ao_mod, "AmazonOrders", mock_orders_cls):
+            result = _fetch_transactions_for_range(
+                start_date="2026-01-01", end_date="2026-01-31", days=None
+            )
+
+        assert len(result) == 1
+        assert result[0].grand_total == -42.50
+        assert result[0].order_number == "111-222-333"
+
 
 class TestMatchTransactionsByAmount:
     def test_empty_queries(self):
