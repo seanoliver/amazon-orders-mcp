@@ -74,17 +74,25 @@ def main() -> None:
         while elapsed < timeout_seconds:
             try:
                 cookies = context.cookies()
+                current_url = page.url.lower()
             except PlaywrightError:
                 print("\n❌ Browser window was closed before sign-in completed.")
                 print("   No cookies captured. Re-run the script to try again.")
                 return
+
             has_auth = any(
                 c["name"] == REQUIRED_COOKIE
                 and c["domain"]
                 and "amazon.com" in c["domain"]
                 for c in cookies
             )
-            if has_auth:
+            # Ensure the user has completed all 2FA / OTP / approval steps
+            # and is no longer on a sign-in or challenge URL
+            is_challenge_page = any(
+                k in current_url
+                for k in ("ap/signin", "openid", "mfa", "cvf", "approval", "verify")
+            )
+            if has_auth and not is_challenge_page:
                 captured = True
                 break
             time.sleep(poll_interval)
@@ -119,10 +127,13 @@ def main() -> None:
         # Convert to the flat {name: value} dict format amazon-orders expects
         flat_dict = {c["name"]: c["value"] for c in amazon_cookies}
 
-        # Write to the cookie jar
+        # Write to the cookie jar and persistent backup
         COOKIE_JAR_PATH.parent.mkdir(parents=True, exist_ok=True)
         COOKIE_JAR_PATH.write_text(json.dumps(flat_dict))
         COOKIE_JAR_PATH.chmod(0o600)
+        backup_path = COOKIE_JAR_PATH.parent / "cookies.backup.json"
+        backup_path.write_text(json.dumps(flat_dict))
+        backup_path.chmod(0o600)
 
         print(f"✅ Wrote {len(flat_dict)} cookies to {COOKIE_JAR_PATH}")
         print(f"   Cookie names: {', '.join(sorted(flat_dict.keys()))}")
