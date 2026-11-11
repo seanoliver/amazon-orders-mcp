@@ -12,6 +12,7 @@ The cookie-only path is the supported happy path.
 import functools
 import logging
 from typing import Any, Optional
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from amazonorders.conf import AmazonOrdersConfig
 from amazonorders.session import AmazonSession, IODefault
@@ -44,13 +45,9 @@ def _install_request_timeout(
 ) -> None:
     """
     Monkey-patch the underlying `requests.Session.request` method to inject
-    a default `timeout=` when the caller doesn't provide one.
-
-    The `amazon-orders` library's `AmazonSession.request` forwards `**kwargs`
-    to `self.session.request(method, url, **kwargs)` without adding a
-    timeout. If the caller doesn't pass one (and the library never does),
-    requests will block forever on a slow/hung server. This wrapper ensures
-    every request has a bounded wait.
+    a default `timeout=` when the caller doesn't provide one, and inject
+    `disableCsd=no-js` query parameter on amazon.com requests to bypass Amazon's
+    Client-Side Decryption (CSD), ensuring plaintext HTML is returned.
     """
     inner_session = amazon_session.session
     original_request = inner_session.request
@@ -58,6 +55,15 @@ def _install_request_timeout(
     @functools.wraps(original_request)
     def request_with_timeout(method: str, url: str, **kwargs: Any) -> Any:
         kwargs.setdefault("timeout", timeout)
+        try:
+            parsed = urlparse(url)
+            if "amazon.com" in parsed.netloc:
+                q = dict(parse_qsl(parsed.query))
+                if "disableCsd" not in q:
+                    q["disableCsd"] = "no-js"
+                    url = urlunparse(parsed._replace(query=urlencode(q)))
+        except Exception:
+            pass
         return original_request(method, url, **kwargs)
 
     inner_session.request = request_with_timeout  # type: ignore[method-assign]
