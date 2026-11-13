@@ -54,22 +54,6 @@ cd amazon-orders-mcp
 uv sync
 ```
 
-### Nix-managed macOS
-
-This server launches Playwright's bundled Chromium. In a Nix shell, the
-`PLAYWRIGHT_BROWSERS_PATH` variable may point into the read-only Nix store.
-Set it to a writable macOS cache before installing Chromium, and keep it set
-when running the server:
-
-```bash
-export PLAYWRIGHT_BROWSERS_PATH="$HOME/Library/Caches/ms-playwright"
-uv run playwright install chromium
-```
-
-If your Nix shell sets `PLAYWRIGHT_BROWSERS_PATH` on entry, update its shell
-hook to use this same writable path. `playwright install chrome` installs
-branded Google Chrome, which this server does not request.
-
 ## One-time setup — cookie capture
 
 **Why this is necessary:** Amazon's JavaScript WAF blocks `requests`-based
