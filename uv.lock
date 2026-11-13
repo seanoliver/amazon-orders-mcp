@@ -2,25 +2,22 @@ version = 1
 revision = 3
 requires-python = ">=3.11, <3.13"
 
-[manifest]
-overrides = [{ name = "pillow", specifier = ">=10.1.0" }]
-
 [[package]]
 name = "amazon-orders"
-version = "4.0.18"
+version = "4.12.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "amazoncaptcha" },
     { name = "beautifulsoup4" },
     { name = "click" },
+    { name = "pillow" },
     { name = "pyotp" },
     { name = "python-dateutil" },
     { name = "pyyaml" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0a/26/03d823483c1b1761bd269ce5adb784ce99ea0ccff610a185bda7bb789f3e/amazon_orders-4.0.18.tar.gz", hash = "sha256:4020e9fa07555262e4b6b6bcb22726a9059e73a65b74b82ebc00824cc0314368", size = 42893, upload-time = "2025-12-07T00:12:09.808Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/85/4d/bff9b6034f068eff13c4b4bbcaf178d1413fef354721cecbc886c9434ef1/amazon_orders-4.12.0.tar.gz", hash = "sha256:ea8d95b6657168974952f08bd3e0e630786f193b570c4ccfd749073d56b35147", size = 112570, upload-time = "2026-10-23T19:45:07.536Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/35/b5/e3eb25ceb595ea3a37e3922026b1dc46b6941a809f18ac0c35db8aa8b344/amazon_orders-4.0.18-py3-none-any.whl", hash = "sha256:9af5123098d3bfafed1d8e5f275c2d2b98d5fc04cd66b4a9e24e0f51032f32de", size = 42590, upload-time = "2025-12-07T00:12:08.525Z" },
+    { url = "https://files.pythonhosted.org/packages/43/55/2ea147f9a4a48dc1cc48dbdc9f3be8e36103969650f6e8acac61dda823d4/amazon_orders-4.12.0-py3-none-any.whl", hash = "sha256:90dbf4781c2fe6c5a84a567965a6445ac47ae0c681763e40700ff9521961e09b", size = 118956, upload-time = "2026-10-23T19:45:06.36Z" },
 ]
 
 [[package]]
@@ -46,7 +43,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "amazon-orders", specifier = "==4.0.*" },
+    { name = "amazon-orders", specifier = ">=4.7,<5" },
     { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
     { name = "isort", marker = "extra == 'dev'", specifier = ">=5.12.0" },
     { name = "keyring", specifier = ">=24.0.0" },
@@ -58,19 +55,6 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.0" },
 ]
 provides-extras = ["dev"]
-
-[[package]]
-name = "amazoncaptcha"
-version = "0.5.11"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pillow" },
-    { name = "requests" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/9a/7a/ccd80836e99ca72d23368e6d5210a34f34793de33da866f23c7931bbe7b5/amazoncaptcha-0.5.11.tar.gz", hash = "sha256:1938e977ebebd83d83cc01478a705f2ecf0d0c5d1189924ff954ee973c25337e", size = 878262, upload-time = "2023-05-14T13:34:33.907Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/a8/d3/6aec247ecede99ca3f591a9d5e6e581d1e73f5a5b3a66b2c4abfb672c2d2/amazoncaptcha-0.5.11-py3-none-any.whl", hash = "sha256:0e6d33154fc0238ca0d794a02289cff154fc8a0ec64243c36951558bbb7da1de", size = 937452, upload-time = "2023-05-14T13:34:31.31Z" },
-]
 
 [[package]]
 name = "annotated-doc"
