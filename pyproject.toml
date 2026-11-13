@@ -60,6 +60,9 @@ python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 
+[tool.uv]
+override-dependencies = ["pillow>=10.1.0"]
+
 [[tool.mypy.overrides]]
 module = "amazonorders.*"
 ignore_missing_imports = true
